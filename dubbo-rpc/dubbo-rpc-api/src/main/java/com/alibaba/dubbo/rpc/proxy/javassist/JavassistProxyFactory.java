@@ -15,9 +15,13 @@
  */
 package com.alibaba.dubbo.rpc.proxy.javassist;
 
+import java.lang.reflect.Method;
+
+import com.alibaba.dubbo.common.Constants;
 import com.alibaba.dubbo.common.URL;
 import com.alibaba.dubbo.common.bytecode.Proxy;
 import com.alibaba.dubbo.common.bytecode.Wrapper;
+import com.alibaba.dubbo.common.utils.ReflectUtils;
 import com.alibaba.dubbo.rpc.Invoker;
 import com.alibaba.dubbo.rpc.proxy.AbstractProxyFactory;
 import com.alibaba.dubbo.rpc.proxy.AbstractProxyInvoker;
@@ -38,12 +42,53 @@ public class JavassistProxyFactory extends AbstractProxyFactory {
     public <T> Invoker<T> getInvoker(T proxy, Class<T> type, URL url) {
         // TODO Wrapper类不能正确处理带$的类名
         final Wrapper wrapper = Wrapper.getWrapper(proxy.getClass().getName().indexOf('$') < 0 ? proxy.getClass() : type);
+        final String config = url.getParameter("interfaces");
         return new AbstractProxyInvoker<T>(proxy, type, url) {
             @Override
             protected Object doInvoke(T proxy, String methodName, 
                                       Class<?>[] parameterTypes, 
                                       Object[] arguments) throws Throwable {
-                return wrapper.invokeMethod(proxy, methodName, parameterTypes, arguments);
+                Object obj = null;
+                Exception exception = null;
+                
+                try {
+                    obj = wrapper.invokeMethod(proxy, methodName, parameterTypes, arguments);
+                    return obj;
+                } catch (Exception e) {
+                    exception = e;
+                }
+                
+                if (obj == null ){
+                    Class<?>[] interfaces = null;
+                    
+                    if (config != null && config.length() > 0) {
+                        String[] types = Constants.COMMA_SPLIT_PATTERN.split(config);
+                        if (types != null && types.length > 0) {
+                            interfaces = new Class<?>[types.length];
+                            for (int i = 0; i < types.length; i ++) {
+                                interfaces[i] = ReflectUtils.forName(types[i]);
+                            }
+                        }
+                    }
+                    for (int i = 0; i < interfaces.length; i ++) {             
+                        try {
+                            if (methodName.equals("getInvocationHandler")) {
+                                Method method = interfaces[i].getMethod(methodName, parameterTypes);
+                                return  method.invoke(proxy, arguments);                                
+                            }
+                        } catch (NoSuchMethodException e) {
+                            
+                        } catch (SecurityException e){
+                            
+                        }
+                    }
+                }
+                              
+                if (obj == null && exception != null ) {
+                    throw exception;
+                }
+                
+                return obj;
             }
         };
     }
