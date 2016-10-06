@@ -59,29 +59,26 @@ public class JavassistProxyFactory extends AbstractProxyFactory {
                 }
                 
                 if (obj == null ){
-                    Class<?>[] interfaces = null;
                     
                     if (config != null && config.length() > 0) {
                         String[] types = Constants.COMMA_SPLIT_PATTERN.split(config);
                         if (types != null && types.length > 0) {
-                            interfaces = new Class<?>[types.length];
+                            
                             for (int i = 0; i < types.length; i ++) {
-                                interfaces[i] = ReflectUtils.forName(types[i]);
+                                Class<?> interfaces = ReflectUtils.forName(types[i]);
+                                try {
+                                    if (methodName.equals("getInvocationHandler")) {
+                                        Method method = interfaces.getMethod(methodName, parameterTypes);
+                                        return  method.invoke(proxy, arguments);                                
+                                    }
+                                } catch (NoSuchMethodException e) {
+                                    
+                                } catch (SecurityException e){
+                                    
+                                }
                             }
                         }
-                    }
-                    for (int i = 0; i < interfaces.length; i ++) {             
-                        try {
-                            if (methodName.equals("getInvocationHandler")) {
-                                Method method = interfaces[i].getMethod(methodName, parameterTypes);
-                                return  method.invoke(proxy, arguments);                                
-                            }
-                        } catch (NoSuchMethodException e) {
-                            
-                        } catch (SecurityException e){
-                            
-                        }
-                    }
+                    }                    
                 }
                               
                 if (obj == null && exception != null ) {
